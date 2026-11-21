@@ -3,6 +3,8 @@ import { upvoteThreadThunk, downvoteThreadThunk } from '../../reducers/threadSli
 import { Link } from 'react-router-dom';
 import { Container } from "react-bootstrap";
 import VoteButtons from '../Shared/VoteButtons';
+import BookmarkButton from '../Shared/BookmarkButton';
+import { formatRelativeTime } from '../../utils/formatRelativeTime';
 import './ThreadList.css';
 
 export default function ThreadList({ threadsToDisplay }) {
@@ -34,9 +36,18 @@ export default function ThreadList({ threadsToDisplay }) {
             <div className="thread-content-section">
               <div className="thread-header">
                 <h5 className="thread-title">{thread.title}</h5>
-                <span className="subreddit-badge">
-                  r/{thread.subreddit?.name || 'unknown'}
-                </span>
+                <div className="d-flex align-items-center gap-2 flex-shrink-0">
+                  {/* Only Saved-tab data carries savedAt */}
+                  {thread.savedAt && (
+                    <span className="small" style={{ color: 'var(--text-muted)' }}>
+                      saved {formatRelativeTime(thread.savedAt)}
+                    </span>
+                  )}
+                  <span className="subreddit-badge">
+                    r/{thread.subreddit?.name || 'unknown'}
+                  </span>
+                  <BookmarkButton threadId={thread._id} />
+                </div>
               </div>
               <p className="thread-text">{thread.content}</p>
               <Link

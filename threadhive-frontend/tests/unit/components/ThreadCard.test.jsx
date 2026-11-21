@@ -8,12 +8,14 @@ import { configureStore } from "@reduxjs/toolkit";
 import ThreadCard from "../../../src/components/ThreadList/ThreadCard";
 import threadReducer from "../../../src/reducers/threadSlice";
 import currentThreadReducer from "../../../src/reducers/selectedThreadSlice";
+import bookmarkReducer from "../../../src/reducers/bookmarkSlice";
 
 const createMockStore = (threads = []) => {
   return configureStore({
     reducer: {
       threads: threadReducer,
       currentThread: currentThreadReducer,
+      bookmarks: bookmarkReducer,
     },
     preloadedState: {
       threads: { threads, loading: false, error: null },
@@ -67,6 +69,17 @@ describe("ThreadCard Component", () => {
   it("renders subreddit name", () => {
     renderThreadCard();
     expect(screen.getByText("r/javascript")).toBeInTheDocument();
+  });
+
+  it("renders a bookmark toggle", () => {
+    renderThreadCard();
+    expect(screen.getByRole("button", { name: "Save thread" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("no longer uses a bookmark icon for the subreddit", () => {
+    const { container } = renderThreadCard();
+    expect(container.querySelector(".thread-meta-icon.bi-bookmark")).toBeNull();
+    expect(container.querySelector(".thread-meta-icon.bi-people")).not.toBeNull();
   });
 
   it("renders back to home button", () => {

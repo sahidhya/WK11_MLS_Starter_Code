@@ -105,6 +105,27 @@ export const mockComments = [
   },
 ];
 
+// A thread in the shape GET /api/bookmarks returns: author and subreddit
+// limited to { _id, name }, plus savedAt.
+export const toSavedThread = (thread, savedAt) => ({
+  _id: thread._id,
+  title: thread.title,
+  content: thread.content,
+  voteCount: thread.voteCount,
+  upvotes: thread.voteCount,
+  downvotes: 0,
+  createdAt: thread.createdAt,
+  author: { _id: thread.author._id, name: thread.author.name },
+  subreddit: { _id: thread.subreddit._id, name: thread.subreddit.name },
+  savedAt,
+});
+
+// Newest-saved first, matching the API's order.
+export const mockBookmarks = [
+  toSavedThread(mockThreads[1], '2024-01-13T09:00:00.000Z'),
+  toSavedThread(mockThreads[0], '2024-01-12T09:00:00.000Z'),
+];
+
 export const mockAuthResponse = {
   success: {
     token: 'mock-jwt-token-12345',
