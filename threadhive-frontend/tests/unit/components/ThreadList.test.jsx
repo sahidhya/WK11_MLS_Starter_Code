@@ -8,12 +8,25 @@ import { configureStore } from "@reduxjs/toolkit";
 import ThreadList from "../../../src/components/ThreadList/ThreadList";
 import threadReducer from "../../../src/reducers/threadSlice";
 import currentThreadReducer from "../../../src/reducers/selectedThreadSlice";
+import bookmarkReducer from "../../../src/reducers/bookmarkSlice";
 
-const createMockStore = () => {
+const createMockStore = (savedIds = []) => {
   return configureStore({
     reducer: {
       threads: threadReducer,
       currentThread: currentThreadReducer,
+      bookmarks: bookmarkReducer,
+    },
+    preloadedState: {
+      bookmarks: {
+        savedIds,
+        idsStatus: "succeeded",
+        savedThreads: [],
+        threadsStatus: "idle",
+        threadsError: null,
+        pendingIds: [],
+        removedThreads: {},
+      },
     },
   });
 };
@@ -36,8 +49,8 @@ describe("ThreadList Component", () => {
     },
   ];
 
-  const renderThreadList = (threads = mockThreads) => {
-    const store = createMockStore();
+  const renderThreadList = (threads = mockThreads, savedIds = []) => {
+    const store = createMockStore(savedIds);
     return render(
       <Provider store={store}>
         <BrowserRouter>
@@ -109,5 +122,24 @@ describe("ThreadList Component", () => {
     const { container } = renderThreadList([]);
     const threadCards = container.querySelectorAll(".thread-card");
     expect(threadCards).toHaveLength(0);
+  });
+
+  it("renders a bookmark toggle on every card", () => {
+    renderThreadList();
+    expect(screen.getAllByRole("button", { name: "Save thread" })).toHaveLength(2);
+  });
+
+  it("renders saved threads with the filled bookmark", () => {
+    renderThreadList(mockThreads, ["t2"]);
+    expect(screen.getByRole("button", { name: "Unsave thread" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Save thread" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("shows when a thread was saved only if it has savedAt", () => {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    renderThreadList([{ ...mockThreads[0], savedAt: twoHoursAgo }, mockThreads[1]]);
+
+    expect(screen.getByText("saved 2h ago")).toBeInTheDocument();
+    expect(screen.getAllByText(/^saved /)).toHaveLength(1);
   });
 });

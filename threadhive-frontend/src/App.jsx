@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
+import { fetchBookmarkIds } from './reducers/bookmarkSlice';
 import Header from './components/Header/Header';
 import Footer from './components/Footer/Footer';
 import Sidebar from './components/Sidebar/Sidebar';
@@ -16,8 +17,17 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     return window.innerWidth >= 768;
   });
+  const dispatch = useDispatch();
   const token = useSelector((state) => state.auth.token);
   const darkMode = useSelector((state) => state.theme.darkMode);
+
+  // Load saved-thread ids once a user is logged in (fresh login, or app load
+  // with a stored token) so every bookmark toggle shows the right state.
+  useEffect(() => {
+    if (token) {
+      dispatch(fetchBookmarkIds());
+    }
+  }, [token, dispatch]);
 
   useEffect(() => {
     const handleResize = () => {

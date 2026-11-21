@@ -3,6 +3,7 @@ import { useDispatch } from 'react-redux';
 import { upvoteThreadThunk, downvoteThreadThunk, generateSummaryThunk } from '../../reducers/threadSlice';
 import { Card, Button, Row, Col, Stack } from "react-bootstrap";
 import VoteButtons from '../Shared/VoteButtons';
+import BookmarkButton from '../Shared/BookmarkButton';
 import ThreadSummary from './ThreadSummary';
 import './ThreadCard.css';
 
@@ -70,17 +71,19 @@ export default function ThreadCard({ thread, goBack }) {
               {thread.content}
             </p>
 
-            {/* Generate Summary Button */}
-            <Button
-              variant="outline-secondary"
-              size="sm"
-              className="mb-3"
-              onClick={handleGenerateSummary}
-              disabled={loadingSummary}
-            >
-              <i className="bi bi-robot me-1"></i>
-              {loadingSummary ? 'Generating...' : 'Generate Summary'}
-            </Button>
+            <div className="d-flex align-items-center gap-3 mb-3">
+              {/* Generate Summary Button */}
+              <Button
+                variant="outline-secondary"
+                size="sm"
+                onClick={handleGenerateSummary}
+                disabled={loadingSummary}
+              >
+                <i className="bi bi-robot me-1"></i>
+                {loadingSummary ? 'Generating...' : 'Generate Summary'}
+              </Button>
+              <BookmarkButton threadId={thread._id} />
+            </div>
 
             {/* AI Summary display */}
             {summary && <ThreadSummary summary={summary} />}
@@ -93,7 +96,7 @@ export default function ThreadCard({ thread, goBack }) {
                 </span>
               </div>
               <div className="d-flex align-items-center gap-2">
-                <i className="bi bi-bookmark thread-meta-icon"></i>
+                <i className="bi bi-people thread-meta-icon"></i>
                 <span className="badge thread-meta-badge">
                   r/{thread.subreddit?.name ?? "unknown"}
                 </span>

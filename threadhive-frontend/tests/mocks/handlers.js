@@ -5,9 +5,20 @@ import {
   mockThreads,
   mockComments,
   mockAuthResponse,
+  mockBookmarks,
+  toSavedThread,
 } from './mockData';
 
 const BASE_URL = 'http://localhost:5000/api';
+
+// In-memory bookmark store (threadId -> savedAt) so a save followed by a list
+// round-trips within a test. server.resetHandlers() doesn't clear module
+// state, so bookmark tests call resetBookmarkMock() in beforeEach.
+const initialBookmarks = () => new Map(mockBookmarks.map((b) => [b._id, b.savedAt]));
+let savedBookmarks = initialBookmarks();
+export const resetBookmarkMock = () => {
+  savedBookmarks = initialBookmarks();
+};
 
 export const handlers = [
   // Auth endpoints
@@ -210,6 +221,45 @@ export const handlers = [
     };
 
     return HttpResponse.json({ data: newSubreddit }, { status: 201 });
+  }),
+
+  // Bookmark endpoints
+  http.get(`${BASE_URL}/bookmarks`, () => {
+    const saved = [...savedBookmarks]
+      .map(([threadId, savedAt]) => {
+        const thread = mockThreads.find((t) => t._id === threadId);
+        return thread ? toSavedThread(thread, savedAt) : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+    return HttpResponse.json({ data: saved });
+  }),
+
+  http.get(`${BASE_URL}/bookmarks/ids`, () => {
+    return HttpResponse.json({ data: [...savedBookmarks.keys()] });
+  }),
+
+  http.put(`${BASE_URL}/bookmarks/:threadId`, ({ params }) => {
+    if (!mockThreads.some((t) => t._id === params.threadId)) {
+      return HttpResponse.json(
+        { message: 'Thread not found' },
+        { status: 404 }
+      );
+    }
+
+    if (!savedBookmarks.has(params.threadId)) {
+      savedBookmarks.set(params.threadId, new Date().toISOString());
+    }
+    return HttpResponse.json({ data: {
+      threadId: params.threadId,
+      saved: true,
+      savedAt: savedBookmarks.get(params.threadId),
+    }});
+  }),
+
+  http.delete(`${BASE_URL}/bookmarks/:threadId`, ({ params }) => {
+    savedBookmarks.delete(params.threadId);
+    return HttpResponse.json({ data: { threadId: params.threadId, saved: false } });
   }),
 
   // User endpoints

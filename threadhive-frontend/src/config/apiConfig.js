@@ -33,3 +33,10 @@ export const SUBREDDIT_API = {
   GET_WITH_THREADS: (id) => `/subreddits/${id}/threads`,
   CREATE: "/subreddits",
 };
+
+// Bookmark API Endpoints
+export const BOOKMARK_API = {
+  GET_ALL: "/bookmarks",
+  GET_IDS: "/bookmarks/ids",
+  BY_THREAD: (threadId) => `/bookmarks/${threadId}`, // PUT saves, DELETE unsaves
+};
