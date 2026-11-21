@@ -1,0 +1,1091 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bookmarks Spec Review</title>
+<meta name="description" content="Review copy of ThreadHive spec 001: saved threads (bookmarks). Requirements, API contract, data model, UI changes, acceptance criteria, test plan and architecture diagrams.">
+<style>
+/* Layout: spec review document. Sticky contents rail beside a ~72ch reading column; diagrams and tables use the full column width.
+   Palette: ThreadHive's own tokens (App.css): blue = new, orange = edited, neutral = existing. */
+:root {
+  --bg: #F5F7FA;
+  --surface: #FFFFFF;
+  --surface-2: #EDF1F6;
+  --fg: #1A1A1B;
+  --muted: #555D6B;
+  --line: #D8DEE7;
+  --line-strong: #9AA4B2;
+  --accent: #0079D3;
+  --accent-soft: #E2EFFA;
+  --edit: #C93C00;
+  --edit-soft: #FCEBE2;
+  --ok: #1D7A4C;
+  --ok-soft: #E1F3EA;
+  --err: #B42318;
+  --err-soft: #FBE7E5;
+  --font-body: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Roboto, Arial, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Roboto, Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --step--1: 0.8125rem;
+  --step-0: 0.9375rem;
+  --step-1: 1.125rem;
+  --step-2: 1.4rem;
+  --step-3: 2rem;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14171C; --surface: #1B1F26; --surface-2: #232934; --fg: #E8E9EA; --muted: #A8AFBA;
+    --line: #313846; --line-strong: #5E6878; --accent: #4FABFF; --accent-soft: #14304A;
+    --edit: #FF7A45; --edit-soft: #3A2218; --ok: #52C48F; --ok-soft: #173327; --err: #FF7B70; --err-soft: #3B1C1A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14171C; --surface: #1B1F26; --surface-2: #232934; --fg: #E8E9EA; --muted: #A8AFBA;
+  --line: #313846; --line-strong: #5E6878; --accent: #4FABFF; --accent-soft: #14304A;
+  --edit: #FF7A45; --edit-soft: #3A2218; --ok: #52C48F; --ok-soft: #173327; --err: #FF7B70; --err-soft: #3B1C1A;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 48px;
+}
+a { color: var(--accent); text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+code, .mono { font-family: var(--font-mono); font-size: 0.86em; }
+code { background: var(--surface-2); padding: 0.1em 0.35em; border-radius: 4px; overflow-wrap: anywhere; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; line-height: 1.2; margin: 0; }
+p { margin: 0; }
+
+.page { max-width: 1240px; margin: 0 auto; }
+
+/* Header */
+.masthead { padding-block: 40px 28px; border-bottom: 1px solid var(--line); display: grid; gap: 18px; }
+.masthead-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.eyebrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: var(--step--1); color: var(--muted); letter-spacing: 0.04em; }
+.eyebrow .sep { color: var(--line-strong); }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--muted); }
+.pill.draft { border-color: var(--edit); color: var(--edit); }
+.theme-btn { font: inherit; font-size: var(--step--1); color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+.theme-btn:hover { border-color: var(--line-strong); }
+.masthead h1 { font-size: var(--step-3); font-weight: 700; letter-spacing: -0.01em; display: flex; align-items: center; gap: 14px; }
+.masthead h1 svg { width: 0.8em; height: 0.8em; color: var(--accent); flex: none; }
+.lede { max-width: 70ch; font-size: var(--step-1); color: var(--fg); line-height: 1.55; }
+.lede-sub { max-width: 72ch; color: var(--muted); }
+
+.glance { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.glance div { background: var(--surface); padding: 12px 14px; display: grid; gap: 2px; }
+.glance b { font-family: var(--font-display); font-size: 1.5rem; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.glance span { font-size: var(--step--1); color: var(--muted); line-height: 1.35; }
+
+/* Two-column layout */
+.layout { display: grid; gap: 32px; padding-top: 28px; }
+.toc { font-size: var(--step--1); }
+.toc-title { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 8px; }
+.toc a { display: block; color: var(--fg); text-decoration: none; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); }
+.toc a:hover { border-color: var(--line-strong); }
+.toc a .ref { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 6px; }
+@media (min-width: 1100px) {
+  .layout { grid-template-columns: 210px minmax(0, 1fr); gap: 48px; }
+  .toc { position: sticky; top: 24px; align-self: start; }
+  .toc ol { flex-direction: column; flex-wrap: nowrap; gap: 2px; }
+  .toc a { border: 0; background: none; padding: 5px 10px; border-left: 2px solid transparent; border-radius: 0; }
+  .toc a.active { border-left-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+}
+main { min-width: 0; display: grid; gap: 56px; }
+
+/* Sections */
+section { display: grid; gap: 18px; scroll-margin-top: 20px; min-width: 0; }
+.sec-head { display: grid; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.sec-ref { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+section h2 { font-size: var(--step-2); font-weight: 700; }
+section h3 { font-size: var(--step-1); font-weight: 650; margin-top: 6px; }
+.prose { max-width: 72ch; display: grid; gap: 12px; }
+.muted { color: var(--muted); }
+.small { font-size: var(--step--1); }
+
+.callout { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 16px 18px; display: grid; gap: 10px; max-width: 80ch; }
+.callout h3 { margin: 0; font-size: var(--step-0); }
+.callout ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+.callout.decision { border-color: var(--accent); }
+
+.two-col { display: grid; gap: 16px; }
+@media (min-width: 820px) { .two-col { grid-template-columns: 1fr 1fr; } }
+.two-col > * { min-width: 0; }
+
+/* Story list */
+.stories { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; counter-reset: story; }
+.stories li { counter-increment: story; display: grid; grid-template-columns: 2.2em minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.stories li::before { content: "US-" counter(story); font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted); }
+
+/* Tables */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: var(--step--1); }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+th { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: var(--surface-2); white-space: nowrap; }
+td.id { font-family: var(--font-mono); white-space: nowrap; color: var(--muted); }
+td.nowrap { white-space: nowrap; }
+.group-row td { background: var(--surface-2); font-weight: 650; font-size: var(--step--1); color: var(--fg); }
+
+/* Chips */
+.chip { display: inline-block; font-size: 0.7rem; font-weight: 650; letter-spacing: 0.03em; padding: 1px 7px; border-radius: 5px; border: 1px solid var(--line-strong); color: var(--muted); white-space: nowrap; margin: 1px 2px 1px 0; }
+.chip.be { border-color: var(--accent); color: var(--accent); }
+.chip.fe { border-color: var(--ok); color: var(--ok); }
+.chip.new { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.chip.edit { background: var(--edit-soft); border: 1px dashed var(--edit); color: var(--edit); }
+.chip.same { background: var(--surface); }
+.status { font-family: var(--font-mono); font-weight: 700; font-size: 0.8rem; padding: 1px 7px; border-radius: 5px; white-space: nowrap; }
+.status.s2 { background: var(--ok-soft); color: var(--ok); }
+.status.s4 { background: var(--err-soft); color: var(--err); }
+
+/* Legend */
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: var(--step--1); color: var(--muted); align-items: center; }
+.legend i { display: inline-block; width: 26px; height: 14px; border-radius: 4px; vertical-align: -2px; margin-right: 6px; }
+.legend .k-new { background: var(--accent-soft); border: 1.75px solid var(--accent); }
+.legend .k-edit { background: var(--edit-soft); border: 1.5px dashed var(--edit); }
+.legend .k-same { background: var(--surface); border: 1.25px solid var(--line-strong); }
+
+/* Figures */
+figure { margin: 0; display: grid; gap: 10px; min-width: 0; }
+.fig-box { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; overflow-x: auto; }
+.fig-box svg { display: block; width: 100%; height: auto; }
+figcaption { font-size: var(--step--1); color: var(--muted); max-width: 80ch; }
+figcaption b { color: var(--fg); }
+.scroll-hint { display: none; font-size: 0.75rem; color: var(--muted); }
+@media (max-width: 800px) { .scroll-hint { display: block; } }
+
+/* Diagram styling (applies to inline SVG) */
+.dg { font-family: var(--font-body); }
+.dg .box { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.25; }
+.dg .box.new { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.75; }
+.dg .box.edit { fill: var(--edit-soft); stroke: var(--edit); stroke-width: 1.5; stroke-dasharray: 5 3; }
+.dg .box.note { fill: var(--surface-2); stroke: var(--line); stroke-width: 1; }
+.dg .box.note-accent { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1; }
+.dg .box.frame { fill: none; stroke: var(--line-strong); stroke-width: 1.25; stroke-dasharray: 6 4; }
+.dg .box.hdr-fill { fill: var(--surface-2); stroke: none; }
+.dg .t { fill: var(--fg); font-size: 13px; font-weight: 650; }
+.dg .s { fill: var(--muted); font-size: 11px; }
+.dg .m { fill: var(--fg); font-family: var(--font-mono); font-size: 11px; }
+.dg .m.dim { fill: var(--muted); }
+.dg .hdr { fill: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: 0.09em; }
+.dg .lbl { fill: var(--muted); font-size: 11px; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.dg .lbl.mono { font-family: var(--font-mono); fill: var(--fg); }
+.dg .err { fill: var(--err); font-weight: 700; font-family: var(--font-mono); font-size: 11px; }
+.dg .acc { fill: var(--accent); font-weight: 650; }
+.dg .tag { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; fill: var(--muted); }
+.dg .tag.new { fill: var(--accent); }
+.dg .edge { stroke: var(--muted); stroke-width: 1.4; fill: none; }
+.dg .edge.ret { stroke-dasharray: 4 3; }
+.dg .edge.lead { stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 2 3; }
+.dg .life { stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 3 4; }
+.dg .rel { stroke: var(--fg); stroke-width: 1.4; fill: none; }
+.dg .ah { fill: var(--muted); }
+.dg .rowline { stroke: var(--line); stroke-width: 1; }
+
+/* Endpoint blocks */
+.endpoints { display: grid; gap: 16px; }
+.endpoint { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.ep-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.method { font-family: var(--font-mono); font-size: 0.78rem; font-weight: 700; padding: 3px 8px; border-radius: 5px; letter-spacing: 0.04em; }
+.method.get { background: var(--ok-soft); color: var(--ok); }
+.method.put { background: var(--accent-soft); color: var(--accent); }
+.method.del { background: var(--err-soft); color: var(--err); }
+.ep-path { font-family: var(--font-mono); font-size: 0.95rem; font-weight: 600; overflow-wrap: anywhere; }
+.ep-purpose { color: var(--muted); font-size: var(--step--1); flex-basis: 100%; }
+.endpoint table th { background: none; }
+.ep-note { padding: 10px 14px; border-top: 1px solid var(--line); font-size: var(--step--1); color: var(--muted); background: var(--surface-2); }
+
+/* Mock UI */
+.mock-wrap { display: grid; gap: 18px; }
+@media (min-width: 900px) { .mock-wrap { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); align-items: start; } }
+.mock { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; font-size: var(--step--1); }
+.mock-bar { display: flex; justify-content: space-between; align-items: center; padding: 8px 14px; background: var(--surface-2); border-bottom: 1px solid var(--line); color: var(--muted); font-family: var(--font-mono); font-size: 0.75rem; gap: 8px; flex-wrap: wrap; }
+.mock-profile { display: flex; align-items: center; gap: 12px; padding: 14px; }
+.avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--surface); font-weight: 700; font-size: 1.1rem; flex: none; }
+.mock-tabs { display: flex; gap: 4px; padding: 0 14px; border-bottom: 1px solid var(--line); }
+.mock-tabs span { padding: 8px 12px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.mock-tabs span.on { color: var(--accent); border-bottom-color: var(--accent); font-weight: 650; }
+.mock-list { list-style: none; margin: 0; padding: 6px 14px; display: grid; }
+.mock-list li { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.mock-list li:last-child { border-bottom: 0; }
+.votes { display: grid; justify-items: center; color: var(--muted); font-variant-numeric: tabular-nums; line-height: 1.15; font-size: 0.75rem; }
+.votes b { color: var(--fg); font-size: 0.85rem; }
+.mock-title { font-weight: 650; color: var(--fg); }
+.mock-meta { color: var(--muted); font-size: 0.75rem; display: flex; flex-wrap: wrap; gap: 6px; }
+.badge-sub { color: var(--accent); }
+.bm { width: 18px; height: 18px; color: var(--accent); }
+.mock-pager { display: flex; justify-content: center; gap: 6px; padding: 10px 14px 14px; }
+.mock-pager span { min-width: 28px; text-align: center; padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mock-pager span.on { border-color: var(--accent); color: var(--accent); font-weight: 650; }
+.mock-note { font-size: 0.75rem; color: var(--muted); padding: 0 14px 12px; }
+.states { display: grid; gap: 10px; }
+.state { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.state .ico { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; border: 1px solid var(--line); color: var(--accent); }
+.state .ico svg { width: 18px; height: 18px; }
+.state.pending .ico { opacity: 0.45; }
+.state b { display: block; font-size: var(--step--1); }
+.state span { font-size: 0.75rem; color: var(--muted); }
+
+ul.plain { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 80ch; }
+ol.steps { margin: 0; padding-left: 1.4em; display: grid; gap: 6px; max-width: 80ch; }
+
+footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); font-size: var(--step--1); color: var(--muted); display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="masthead">
+  <div class="masthead-top">
+    <div class="eyebrow">
+      <span class="pill draft">Draft</span>
+      <span>ThreadHive</span><span class="sep">/</span>
+      <span>Spec 001</span><span class="sep">/</span>
+      <span>Drafted 21 Nov 2026</span><span class="sep">/</span>
+      <span>Epic <a href="../docs/epic-discover-engage.md">Discover &amp; Engage</a>, feature F3</span>
+    </div>
+    <button class="theme-btn" id="theme-toggle" type="button" aria-label="Switch color theme">Switch theme</button>
+  </div>
+  <h1>
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 1.5h9v13L8 11.2 3.5 14.5z" fill="currentColor"/></svg>
+    Saved threads (bookmarks)
+  </h1>
+  <p class="lede">Logged-in users can save any thread with one click, from the feed or from the thread page, and find all their saved threads in a new <b>Saved</b> tab on their Profile.</p>
+  <p class="lede-sub">This page is a review copy of <code>specs/001-bookmarks.md</code> for engineering, product and other stakeholders. Every requirement in the spec appears here. The diagrams show where the new pieces plug into the existing React, Redux, Express and MongoDB app.</p>
+  <div class="glance" aria-label="Scope at a glance">
+    <div><b>4</b><span>new API endpoints, all behind login</span></div>
+    <div><b>1</b><span>new MongoDB collection</span></div>
+    <div><b>0</b><span>changes to existing schemas</span></div>
+    <div><b>8 / 7</b><span>source files new / edited</span></div>
+    <div><b>25</b><span>acceptance criteria, each tested</span></div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc" aria-label="Contents">
+    <div class="toc-title">Contents</div>
+    <ol id="toc">
+      <li><a href="#summary"><span class="ref">§1</span>Summary &amp; decisions</a></li>
+      <li><a href="#stories"><span class="ref">§2</span>User stories</a></li>
+      <li><a href="#architecture"><span class="ref">Fig</span>How it fits</a></li>
+      <li><a href="#flow"><span class="ref">Fig</span>Save flow</a></li>
+      <li><a href="#data-model"><span class="ref">§5</span>Data model</a></li>
+      <li><a href="#api"><span class="ref">§4</span>API contract</a></li>
+      <li><a href="#ui"><span class="ref">§6</span>UI changes</a></li>
+      <li><a href="#criteria"><span class="ref">§3</span>Acceptance criteria</a></li>
+      <li><a href="#edge-cases"><span class="ref">§7</span>Edge cases</a></li>
+      <li><a href="#out-of-scope"><span class="ref">§8</span>Out of scope</a></li>
+      <li><a href="#tests"><span class="ref">§9</span>Test plan</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- §1 -->
+  <section id="summary">
+    <div class="sec-head"><span class="sec-ref">Spec §1 · Problem / motivation</span><h2>Why bookmarks</h2></div>
+    <div class="prose">
+      <p>ThreadHive has no way to keep a thread for later. The feed is newest-first with five threads per page, so a thread a user meant to come back to drifts out of reach within a few visits. Today the only workaround is remembering the title or the URL.</p>
+      <p>Bookmarks give users a private, persistent list of threads they care about, and that list is a concrete reason to return to the app.</p>
+      <p class="muted">It builds on what already exists: thread cards in the feed (<code>ThreadList.jsx</code>), the single-thread view (<code>ThreadCard.jsx</code>), the Profile page (<code>/profile</code>), and JWT login on every API route (<code>authHandler</code>), which identifies the user on each request.</p>
+    </div>
+    <div class="callout decision">
+      <h3>Decided while drafting</h3>
+      <ul>
+        <li>The Save toggle appears on <b>feed cards and on the thread page</b>.</li>
+        <li>Saved threads appear in a <b>Saved tab on Profile</b>, which can be linked as <code>/profile?tab=saved</code>.</li>
+        <li><b>Change from the epic draft:</b> no separate <code>/saved</code> page and no Sidebar link. This also keeps the feature out of <code>Sidebar.jsx</code>, which another epic feature edits.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- §2 -->
+  <section id="stories">
+    <div class="sec-head"><span class="sec-ref">Spec §2</span><h2>User stories</h2></div>
+    <ol class="stories">
+      <li><span>As a logged-in user, I can <b>save a thread from the feed</b> with one click, without opening it.</span></li>
+      <li><span>As a logged-in user, I can <b>save or unsave a thread from its thread page</b>.</span></li>
+      <li><span>As a logged-in user, I can <b>see at a glance whether a thread is already saved</b>, wherever its card appears.</span></li>
+      <li><span>As a logged-in user, I can open the <b>Saved tab on my Profile</b> and see the threads I saved, newest first, with when I saved each one.</span></li>
+      <li><span>As a logged-in user, I can <b>unsave a thread directly from the Saved tab</b>.</span></li>
+      <li><span>As a logged-in user, <b>my saved threads are private</b>: no other user can see or change them.</span></li>
+      <li><span>As a logged-in user, I can <b>share or bookmark a link to my Saved tab</b> (<code>/profile?tab=saved</code>).</span></li>
+    </ol>
+  </section>
+
+  <!-- Architecture -->
+  <section id="architecture">
+    <div class="sec-head"><span class="sec-ref">Architecture</span><h2>How it fits into the app</h2></div>
+    <p class="prose">The feature follows the app's existing layering at both ends. In the browser that is component, Redux slice, service, then axios. On the server it is route, <code>authHandler</code>, controller, service, then Mongoose model. Every new file sits in a layer that already exists; none of them introduces a new pattern.</p>
+    <div class="legend" aria-label="Diagram legend">
+      <span><i class="k-new"></i>New file</span>
+      <span><i class="k-edit"></i>Existing file, edited</span>
+      <span><i class="k-same"></i>Existing, unchanged</span>
+    </div>
+
+    <figure>
+      <div class="fig-box">
+        <svg class="dg" viewBox="0 0 960 420" style="min-width:760px" role="img" aria-label="Frontend integration: ThreadList and ThreadCard render the new BookmarkButton, which dispatches toggleBookmark to the new bookmarkSlice. App.jsx loads saved ids at login and Profile loads the saved list. bookmarkSlice listens to authSlice logout and threadSlice vote results, and calls the new bookmarkService, which uses apiConfig paths and the existing axiosInstance.">
+          <defs>
+            <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="ah"/></marker>
+          </defs>
+          <text class="hdr" x="115" y="24" text-anchor="middle">PAGES &amp; LISTS</text>
+          <text class="hdr" x="360" y="24" text-anchor="middle">SHARED COMPONENT</text>
+          <text class="hdr" x="610" y="24" text-anchor="middle">REDUX STORE</text>
+          <text class="hdr" x="855" y="24" text-anchor="middle">API CLIENT</text>
+
+          <!-- edges first so boxes sit on top -->
+          <line class="edge" x1="210" y1="73" x2="508" y2="150" marker-end="url(#a1)"/>
+          <text class="lbl" x="352" y="99" text-anchor="middle">fetchBookmarkIds() when token is set</text>
+          <line class="edge" x1="210" y1="173" x2="508" y2="196" marker-end="url(#a1)"/>
+          <text class="lbl" x="352" y="174" text-anchor="middle">fetchSavedThreads() · tab count</text>
+          <line class="edge" x1="115" y1="196" x2="115" y2="248" marker-end="url(#a1)"/>
+          <text class="lbl" x="124" y="227">Saved tab renders list</text>
+          <line class="edge" x1="210" y1="273" x2="268" y2="306" marker-end="url(#a1)"/>
+          <line class="edge" x1="210" y1="363" x2="268" y2="332" marker-end="url(#a1)"/>
+          <text class="lbl" x="236" y="322" text-anchor="middle">renders</text>
+          <polyline class="edge" points="360,290 360,262 508,262" marker-end="url(#a1)"/>
+          <text class="lbl mono" x="434" y="255" text-anchor="middle">toggleBookmark()</text>
+          <line class="edge" x1="610" y1="96" x2="610" y2="128" marker-end="url(#a1)"/>
+          <text class="lbl" x="618" y="117">auth/logout → reset</text>
+          <line class="edge" x1="610" y1="350" x2="610" y2="308" marker-end="url(#a1)"/>
+          <text class="lbl" x="618" y="333">votes → sync counts</text>
+          <line class="edge" x1="710" y1="198" x2="768" y2="198" marker-end="url(#a1)"/>
+          <text class="lbl" x="739" y="190" text-anchor="middle">calls</text>
+          <line class="edge" x1="855" y1="96" x2="855" y2="168" marker-end="url(#a1)"/>
+          <text class="lbl" x="863" y="137">paths</text>
+          <line class="edge" x1="855" y1="226" x2="855" y2="288" marker-end="url(#a1)"/>
+          <text class="lbl" x="863" y="262">requests</text>
+          <line class="edge" x1="855" y1="336" x2="855" y2="372" marker-end="url(#a1)"/>
+          <text class="s" x="855" y="391" text-anchor="middle">HTTP + Bearer JWT</text>
+          <text class="s" x="855" y="407" text-anchor="middle">to Express, see Fig. 2</text>
+
+          <!-- column 1 -->
+          <rect class="box edit" x="20" y="50" width="190" height="46" rx="8"/>
+          <text class="t" x="34" y="70">App.jsx</text><text class="s" x="34" y="87">loads saved ids at login</text>
+          <rect class="box edit" x="20" y="150" width="190" height="46" rx="8"/>
+          <text class="t" x="34" y="170">Profile.jsx</text><text class="s" x="34" y="187">Details · Saved tabs</text>
+          <rect class="box edit" x="20" y="250" width="190" height="46" rx="8"/>
+          <text class="t" x="34" y="270">ThreadList.jsx</text><text class="s" x="34" y="287">feed and Saved tab cards</text>
+          <rect class="box edit" x="20" y="340" width="190" height="46" rx="8"/>
+          <text class="t" x="34" y="360">ThreadCard.jsx</text><text class="s" x="34" y="377">single-thread view</text>
+
+          <!-- column 2 -->
+          <rect class="box new" x="270" y="290" width="180" height="56" rx="8"/>
+          <text class="t" x="284" y="313">BookmarkButton.jsx</text><text class="s" x="284" y="331">save / unsave toggle</text>
+
+          <!-- column 3 -->
+          <rect class="box" x="520" y="50" width="180" height="46" rx="8"/>
+          <text class="t" x="534" y="70">authSlice</text><text class="s" x="534" y="87">emits auth/logout</text>
+          <rect class="box new" x="510" y="130" width="200" height="176" rx="8"/>
+          <text class="t" x="524" y="152">bookmarkSlice</text>
+          <text class="m" x="524" y="176">savedIds</text>
+          <text class="m" x="524" y="194">pendingIds</text>
+          <text class="m" x="524" y="212">savedThreads</text>
+          <text class="tag new" x="524" y="238">THUNKS</text>
+          <text class="m" x="524" y="256">fetchBookmarkIds</text>
+          <text class="m" x="524" y="274">fetchSavedThreads</text>
+          <text class="m" x="524" y="292">toggleBookmark</text>
+          <rect class="box" x="520" y="350" width="180" height="46" rx="8"/>
+          <text class="t" x="534" y="370">threadSlice</text><text class="s" x="534" y="387">vote thunks</text>
+
+          <!-- column 4 -->
+          <rect class="box edit" x="770" y="50" width="170" height="46" rx="8"/>
+          <text class="t" x="784" y="70">apiConfig.js</text><text class="s" x="784" y="87">BOOKMARK_API paths</text>
+          <rect class="box new" x="770" y="170" width="170" height="56" rx="8"/>
+          <text class="t" x="784" y="193">bookmarkService.js</text><text class="s" x="784" y="211">4 calls, auth header</text>
+          <rect class="box" x="770" y="290" width="170" height="46" rx="8"/>
+          <text class="t" x="784" y="310">axiosInstance</text><text class="s" x="784" y="327">baseURL :5000/api</text>
+        </svg>
+      </div>
+      <span class="scroll-hint">Scroll sideways to see the whole diagram.</span>
+      <figcaption><b>Fig. 1 · Frontend.</b> One new slice, <code>bookmarkSlice</code>, holds every piece of bookmark state, and every toggle in the app reads from it. That shared state is what keeps the feed card and the thread page in agreement. The slice also listens for two existing actions: logout, which clears it, and vote results, which keep counts current in the Saved list.</figcaption>
+    </figure>
+
+    <figure>
+      <div class="fig-box">
+        <svg class="dg" viewBox="0 0 960 580" style="min-width:760px" role="img" aria-label="Backend request path from top to bottom: axiosInstance, app.js, routes/bookmarks.js, authHandler, bookmarkController, bookmarkService, then the Bookmark and Thread models, then MongoDB. Notes beside each layer show which layer returns 401, 400 and 404 and which rules the service enforces.">
+          <defs>
+            <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="ah"/></marker>
+          </defs>
+          <!-- vertical chain edges -->
+          <line class="edge" x1="165" y1="62" x2="165" y2="84" marker-end="url(#a2)"/>
+          <line class="edge" x1="165" y1="132" x2="165" y2="154" marker-end="url(#a2)"/>
+          <line class="edge" x1="165" y1="202" x2="165" y2="224" marker-end="url(#a2)"/>
+          <line class="edge" x1="165" y1="272" x2="165" y2="294" marker-end="url(#a2)"/>
+          <line class="edge" x1="165" y1="342" x2="165" y2="364" marker-end="url(#a2)"/>
+          <line class="edge" x1="100" y1="412" x2="100" y2="444" marker-end="url(#a2)"/>
+          <line class="edge" x1="230" y1="412" x2="230" y2="444" marker-end="url(#a2)"/>
+          <line class="edge" x1="100" y1="492" x2="100" y2="518" marker-end="url(#a2)"/>
+          <line class="edge" x1="230" y1="492" x2="230" y2="518" marker-end="url(#a2)"/>
+          <text class="lbl" x="108" y="433">read + write</text>
+          <text class="lbl" x="238" y="433">read</text>
+
+          <!-- leaders -->
+          <line class="edge lead" x1="290" y1="39" x2="322" y2="39"/>
+          <line class="edge lead" x1="290" y1="109" x2="322" y2="109"/>
+          <line class="edge lead" x1="290" y1="179" x2="322" y2="179"/>
+          <line class="edge lead" x1="290" y1="249" x2="322" y2="249"/>
+          <line class="edge lead" x1="290" y1="319" x2="322" y2="319"/>
+          <line class="edge lead" x1="290" y1="389" x2="322" y2="389"/>
+          <line class="edge lead" x1="290" y1="469" x2="322" y2="469"/>
+          <line class="edge lead" x1="290" y1="543" x2="322" y2="543"/>
+
+          <!-- boxes -->
+          <rect class="box" x="40" y="16" width="250" height="46" rx="8"/>
+          <text class="t" x="56" y="36">axiosInstance (browser)</text><text class="s" x="56" y="53">Authorization: Bearer &lt;jwt&gt;</text>
+          <rect class="box edit" x="40" y="86" width="250" height="46" rx="8"/>
+          <text class="t" x="56" y="106">app.js</text><text class="s" x="56" y="123">mounts /api/bookmarks</text>
+          <rect class="box new" x="40" y="156" width="250" height="46" rx="8"/>
+          <text class="t" x="56" y="176">routes/bookmarks.js</text><text class="s" x="56" y="193">4 routes, all behind authHandler</text>
+          <rect class="box" x="40" y="226" width="250" height="46" rx="8"/>
+          <text class="t" x="56" y="246">authHandler</text><text class="s" x="56" y="263">verifies JWT, sets req.user.userId</text>
+          <rect class="box new" x="40" y="296" width="250" height="46" rx="8"/>
+          <text class="t" x="56" y="316">bookmarkController.js</text><text class="s" x="56" y="333">HTTP in, envelope out</text>
+          <rect class="box new" x="40" y="366" width="250" height="46" rx="8"/>
+          <text class="t" x="56" y="386">bookmarkService.js</text><text class="s" x="56" y="403">rules and queries</text>
+          <rect class="box new" x="40" y="446" width="120" height="46" rx="8"/>
+          <text class="t" x="52" y="466">Bookmark</text><text class="s" x="52" y="483">new model</text>
+          <rect class="box" x="170" y="446" width="120" height="46" rx="8"/>
+          <text class="t" x="182" y="466">Thread</text><text class="s" x="182" y="483">unchanged</text>
+          <rect class="box" x="40" y="520" width="250" height="46" rx="8"/>
+          <text class="t" x="56" y="540">MongoDB</text><text class="s" x="56" y="557">bookmarks (new) · threads · users</text>
+
+          <!-- notes -->
+          <text class="m" x="330" y="43">GET /api/bookmarks · GET /api/bookmarks/ids · PUT | DELETE /api/bookmarks/:threadId</text>
+          <text x="330" y="113"><tspan class="s">One line added: </tspan><tspan class="m">app.use("/api/bookmarks", bookmarkRoutes)</tspan></text>
+          <text class="s" x="330" y="183">Declares /ids before /:threadId, so the word “ids” is never read as a thread id.</text>
+          <text x="330" y="245"><tspan class="err">401 </tspan><tspan class="s">No token provided, authorization denied.</tspan></text>
+          <text x="330" y="261"><tspan class="err">401 </tspan><tspan class="s">Token is not valid.</tspan></text>
+          <text class="s" x="330" y="315">Reads req.user.userId and req.params.threadId and calls the service,</text>
+          <text class="s" x="330" y="331">then wraps the result in { success, message, data }. No business logic.</text>
+          <text x="330" y="377"><tspan class="err">400 </tspan><tspan class="s">“Invalid thread id”: checked with isValidObjectId before any query</tspan></text>
+          <text x="330" y="394"><tspan class="err">404 </tspan><tspan class="s">“Thread not found”: on save only</tspan></text>
+          <text class="s" x="330" y="411">A duplicate-key error (11000) from a concurrent save counts as already saved.</text>
+          <text class="s" x="330" y="428">Bookmarks whose thread was deleted are filtered out and removed.</text>
+          <text class="s" x="330" y="445">Author and subreddit come back as { _id, name } only.</text>
+          <text class="s" x="330" y="469">Bookmark is the only new model. Thread is only read: does it exist, and what goes in the list.</text>
+          <text class="s" x="330" y="485">User, Thread, Subreddit and Comment schemas are unchanged.</text>
+          <text x="330" y="547"><tspan class="s">Indexes on bookmarks: </tspan><tspan class="m">{ user: 1, thread: 1 } unique · { user: 1, createdAt: -1 }</tspan></text>
+        </svg>
+      </div>
+      <span class="scroll-hint">Scroll sideways to see the whole diagram.</span>
+      <figcaption><b>Fig. 2 · Backend request path.</b> Each status code comes from exactly one layer: 401 from <code>authHandler</code>, 400 and 404 from <code>bookmarkService</code>. The controller only translates between HTTP and the service. The only existing backend file that changes is <code>app.js</code>, by one line.</figcaption>
+    </figure>
+
+    <h3>Change footprint</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Area</th><th>New</th><th>Edited</th></tr></thead>
+        <tbody>
+          <tr><td class="nowrap"><b>Backend source</b></td>
+            <td><code>src/models/Bookmark.js</code> <code>src/services/bookmarkService.js</code> <code>src/controllers/bookmarkController.js</code> <code>src/routes/bookmarks.js</code></td>
+            <td><code>src/app.js</code> (one mount line)</td></tr>
+          <tr><td class="nowrap"><b>Frontend source</b></td>
+            <td><code>src/services/bookmarkService.js</code> <code>src/reducers/bookmarkSlice.js</code> <code>src/components/Shared/BookmarkButton.jsx</code> <code>src/utils/formatRelativeTime.js</code></td>
+            <td><code>ThreadList.jsx</code> <code>ThreadCard.jsx</code> <code>Profile.jsx</code> <code>App.jsx</code> <code>store/store.js</code> <code>config/apiConfig.js</code></td></tr>
+          <tr><td class="nowrap"><b>Backend tests</b></td>
+            <td><code>tests/unit/services/bookmarkService.test.js</code> <code>tests/unit/controllers/bookmarkController.test.js</code> <code>tests/integration/bookmark.test.js</code></td>
+            <td class="muted">none (<code>tests/setup.js</code> is left alone)</td></tr>
+          <tr><td class="nowrap"><b>Frontend tests</b></td>
+            <td><code>bookmarkSlice.test.js</code> <code>BookmarkButton.test.jsx</code> <code>formatRelativeTime.test.js</code> <code>integration/bookmarkFlow.test.jsx</code></td>
+            <td><code>Profile.test.jsx</code> <code>ThreadList.test.jsx</code> <code>ThreadCard.test.jsx</code> <code>store.test.js</code> <code>mocks/handlers.js</code> <code>mocks/mockData.js</code></td></tr>
+          <tr><td class="nowrap"><b>Unchanged</b></td>
+            <td colspan="2" class="muted">User, Thread, Subreddit and Comment schemas; React Router routes (no new page); <code>Sidebar.jsx</code>; <code>threadService.js</code> on both ends.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Flow -->
+  <section id="flow">
+    <div class="sec-head"><span class="sec-ref">Behaviour</span><h2>What happens when a user clicks Save</h2></div>
+    <p class="prose">The button updates first and the server confirms afterwards. If the server rejects the save, the change is undone. Saves can safely be repeated (the API is idempotent), so retries and double-clicks can never leave the toggle in the wrong state.</p>
+    <figure>
+      <div class="fig-box">
+        <svg class="dg" viewBox="0 0 960 560" style="min-width:780px" role="img" aria-label="Sequence: the user clicks Save; BookmarkButton dispatches toggleBookmark; bookmarkSlice marks the thread saved and pending immediately, so the icon fills and the button disables. The slice sends PUT /api/bookmarks/:threadId. Express checks auth, validates the id and checks the thread exists, then upserts the bookmark in MongoDB. The server returns 200 and the slice clears the pending flag. On error the slice restores the previous state.">
+          <defs>
+            <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="ah"/></marker>
+          </defs>
+          <!-- lifelines -->
+          <line class="life" x1="70" y1="62" x2="70" y2="548"/>
+          <line class="life" x1="250" y1="62" x2="250" y2="548"/>
+          <line class="life" x1="460" y1="62" x2="460" y2="548"/>
+          <line class="life" x1="680" y1="62" x2="680" y2="548"/>
+          <line class="life" x1="880" y1="62" x2="880" y2="548"/>
+          <!-- headers -->
+          <rect class="box" x="10" y="16" width="120" height="46" rx="8"/>
+          <text class="t" x="70" y="44" text-anchor="middle">User</text>
+          <rect class="box new" x="180" y="16" width="140" height="46" rx="8"/>
+          <text class="t" x="250" y="36" text-anchor="middle">BookmarkButton</text><text class="s" x="250" y="53" text-anchor="middle">React component</text>
+          <rect class="box new" x="390" y="16" width="140" height="46" rx="8"/>
+          <text class="t" x="460" y="36" text-anchor="middle">bookmarkSlice</text><text class="s" x="460" y="53" text-anchor="middle">Redux, via service</text>
+          <rect class="box new" x="600" y="16" width="160" height="46" rx="8"/>
+          <text class="t" x="680" y="36" text-anchor="middle">Express API</text><text class="s" x="680" y="53" text-anchor="middle">router · auth · service</text>
+          <rect class="box" x="810" y="16" width="140" height="46" rx="8"/>
+          <text class="t" x="880" y="36" text-anchor="middle">MongoDB</text><text class="s" x="880" y="53" text-anchor="middle">bookmarks</text>
+
+          <!-- messages -->
+          <line class="edge" x1="70" y1="92" x2="248" y2="92" marker-end="url(#a3)"/>
+          <text class="lbl" x="160" y="86" text-anchor="middle">clicks Save</text>
+          <line class="edge" x1="250" y1="130" x2="458" y2="130" marker-end="url(#a3)"/>
+          <text class="lbl mono" x="355" y="124" text-anchor="middle">toggleBookmark(save: true)</text>
+          <rect class="box note-accent" x="470" y="142" width="196" height="42" rx="6"/>
+          <text class="acc" x="480" y="159" font-size="11.5">pending (optimistic)</text>
+          <text class="s" x="480" y="176">added to savedIds, pendingIds</text>
+          <line class="edge ret" x1="460" y1="206" x2="252" y2="206" marker-end="url(#a3)"/>
+          <text class="lbl" x="355" y="200" text-anchor="middle">icon fills, button disabled</text>
+          <line class="edge" x1="460" y1="246" x2="678" y2="246" marker-end="url(#a3)"/>
+          <text class="lbl mono" x="570" y="240" text-anchor="middle">PUT /api/bookmarks/:threadId</text>
+          <rect class="box note" x="690" y="258" width="176" height="42" rx="6"/>
+          <text class="s" x="700" y="275">token valid? id valid?</text>
+          <text class="s" x="700" y="292">thread exists?</text>
+          <line class="edge" x1="680" y1="322" x2="878" y2="322" marker-end="url(#a3)"/>
+          <text class="lbl mono" x="780" y="316" text-anchor="middle">upsert { user, thread }</text>
+          <line class="edge ret" x1="880" y1="356" x2="682" y2="356" marker-end="url(#a3)"/>
+          <text class="lbl" x="780" y="350" text-anchor="middle">ok (duplicate key also ok)</text>
+          <line class="edge ret" x1="680" y1="394" x2="462" y2="394" marker-end="url(#a3)"/>
+          <text class="lbl mono" x="570" y="388" text-anchor="middle">200 { saved: true, savedAt }</text>
+          <rect class="box note" x="470" y="406" width="196" height="28" rx="6"/>
+          <text class="s" x="480" y="424">fulfilled: pendingIds drops id</text>
+          <line class="edge ret" x1="460" y1="458" x2="252" y2="458" marker-end="url(#a3)"/>
+          <text class="lbl" x="355" y="452" text-anchor="middle">button enabled again</text>
+
+          <!-- error frame -->
+          <rect class="box frame" x="190" y="476" width="580" height="66" rx="6"/>
+          <rect class="box hdr-fill" x="191" y="477" width="72" height="20" rx="5"/>
+          <text class="t" x="200" y="491" font-size="11">on error</text>
+          <text class="s" x="206" y="514"><tspan class="err">400 · 404 · 5xx </tspan>→ rejected: savedIds restored, pendingIds cleared, message via handleApiError</text>
+          <text class="s" x="206" y="532"><tspan class="err">401 </tspan>→ handleApiError clears the stored session and redirects to /login</text>
+        </svg>
+      </div>
+      <span class="scroll-hint">Scroll sideways to see the whole diagram.</span>
+      <figcaption><b>Fig. 3 · Saving a thread.</b> The blue note is the moment the user sees the change, before any network round trip. Unsave is the same flow with <code>DELETE</code>, and it also removes the thread from the Saved list right away. While a request is in flight, the button for that thread is disabled everywhere it appears (AC-5).</figcaption>
+    </figure>
+  </section>
+
+  <!-- §5 -->
+  <section id="data-model">
+    <div class="sec-head"><span class="sec-ref">Spec §5</span><h2>Data model</h2></div>
+    <figure>
+      <div class="fig-box">
+        <svg class="dg" viewBox="0 0 960 262" style="min-width:760px" role="img" aria-label="Entity diagram: one User has zero or more Bookmarks; each Bookmark points to exactly one Thread. Bookmark fields are _id, user, thread, createdAt (exposed as savedAt) and updatedAt, with a unique index on user and thread and an index on user and createdAt. User and Thread are unchanged.">
+          <!-- relationships -->
+          <line class="rel" x1="260" y1="97" x2="365" y2="97"/>
+          <text class="m" x="268" y="89">1</text>
+          <text class="m" x="357" y="89" text-anchor="end">0..*</text>
+          <text class="lbl" x="312" y="116" text-anchor="middle">saves</text>
+          <line class="rel" x1="595" y1="119" x2="700" y2="119"/>
+          <text class="m" x="603" y="111">0..*</text>
+          <text class="m" x="692" y="111" text-anchor="end">1</text>
+          <text class="lbl" x="647" y="138" text-anchor="middle">points to</text>
+
+          <!-- User -->
+          <rect class="box" x="30" y="30" width="230" height="128" rx="8"/>
+          <text class="t" x="42" y="52">User</text><text class="tag" x="248" y="52" text-anchor="end">UNCHANGED</text>
+          <line class="rowline" x1="30" y1="62" x2="260" y2="62"/>
+          <text class="m" x="42" y="80">_id</text><text class="s" x="135" y="80">ObjectId</text>
+          <text class="m" x="42" y="102">name</text><text class="s" x="135" y="102">String</text>
+          <text class="m" x="42" y="124">email</text><text class="s" x="135" y="124">String</text>
+          <text class="m" x="42" y="146">password</text><text class="s" x="135" y="146">String (hash)</text>
+
+          <!-- Bookmark -->
+          <rect class="box new" x="365" y="30" width="230" height="150" rx="8"/>
+          <text class="t" x="377" y="52">Bookmark</text><text class="tag new" x="583" y="52" text-anchor="end">NEW COLLECTION</text>
+          <line class="rowline" x1="365" y1="62" x2="595" y2="62"/>
+          <text class="m" x="377" y="80">_id</text><text class="s" x="470" y="80">ObjectId</text>
+          <text class="m" x="377" y="102">user</text><text class="s" x="470" y="102">→ User, required</text>
+          <text class="m" x="377" y="124">thread</text><text class="s" x="470" y="124">→ Thread, required</text>
+          <text class="m" x="377" y="146">createdAt</text><text class="s" x="470" y="146">Date (= savedAt)</text>
+          <text class="m" x="377" y="168">updatedAt</text><text class="s" x="470" y="168">Date</text>
+          <text class="tag new" x="377" y="206">INDEXES</text>
+          <text class="m" x="377" y="226">{ user: 1, thread: 1 }  unique</text>
+          <text class="m" x="377" y="244">{ user: 1, createdAt: -1 }</text>
+
+          <!-- Thread -->
+          <rect class="box" x="700" y="30" width="230" height="150" rx="8"/>
+          <text class="t" x="712" y="52">Thread</text><text class="tag" x="918" y="52" text-anchor="end">UNCHANGED</text>
+          <line class="rowline" x1="700" y1="62" x2="930" y2="62"/>
+          <text class="m" x="712" y="80">_id</text><text class="s" x="810" y="80">ObjectId</text>
+          <text class="m" x="712" y="102">title</text><text class="s" x="810" y="102">String</text>
+          <text class="m" x="712" y="124">author</text><text class="s" x="810" y="124">→ User</text>
+          <text class="m" x="712" y="146">subreddit</text><text class="s" x="810" y="146">→ Subreddit</text>
+          <text class="m" x="712" y="168">voteCount</text><text class="s" x="810" y="168">Number</text>
+        </svg>
+      </div>
+      <span class="scroll-hint">Scroll sideways to see the whole diagram.</span>
+      <figcaption><b>Fig. 4 · One new collection.</b> A bookmark links one user to one thread. The unique index makes "saved twice" impossible at the database level. Only the fields relevant here are shown for User and Thread.</figcaption>
+    </figure>
+
+    <div class="two-col">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Field</th><th>Type</th><th>Rules</th></tr></thead>
+          <tbody>
+            <tr><td><code>user</code></td><td>ObjectId → <code>"User"</code></td><td>Required. Always taken from the login token (<code>req.user.userId</code>), never from the request body.</td></tr>
+            <tr><td><code>thread</code></td><td>ObjectId → <code>"Thread"</code></td><td>Required. The saved thread.</td></tr>
+            <tr><td><code>createdAt</code></td><td>Date</td><td>Automatic, from <code>{ timestamps: true }</code>. Sent to clients as <code>savedAt</code>.</td></tr>
+            <tr><td><code>updatedAt</code></td><td>Date</td><td>Automatic. Unused.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout">
+        <h3>Why a separate collection</h3>
+        <ul>
+          <li>Leaves <code>User.js</code> untouched. A <code>savedThreads</code> array on the user would grow without limit.</li>
+          <li>Records when each thread was saved, so the list can sort newest-saved first and show "saved 2h ago".</li>
+          <li>The unique compound index prevents duplicates at the database level.</li>
+          <li>No migration: MongoDB creates the collection on the first save.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- §4 -->
+  <section id="api">
+    <div class="sec-head"><span class="sec-ref">Spec §4</span><h2>API contract</h2></div>
+    <div class="callout">
+      <h3>Applies to all four endpoints</h3>
+      <ul>
+        <li><b>Auth:</b> <code>Authorization: Bearer &lt;jwt&gt;</code>, enforced by <code>authHandler</code>. Without a valid token: <span class="status s4">401</span> "No token provided, authorization denied." or "Token is not valid."</li>
+        <li><b>Envelope:</b> <code>{ success, message, data }</code>. Errors are raised with <code>createAppError</code> and returned as <code>{ success: false, message }</code>.</li>
+        <li><b>Routing:</b> new router <code>src/routes/bookmarks.js</code>, mounted at <code>/api/bookmarks</code>. <code>/ids</code> is declared before <code>/:threadId</code>.</li>
+        <li><b>Why <code>PUT</code> / <code>DELETE</code> instead of one toggle endpoint:</b> the client always knows the state it wants. With repeat-safe calls, retries and double-clicks can't flip the state the wrong way.</li>
+      </ul>
+    </div>
+
+    <div class="endpoints">
+      <article class="endpoint">
+        <div class="ep-head"><span class="method get">GET</span><span class="ep-path">/api/bookmarks</span><span class="ep-purpose">Lists the caller's saved threads for the Saved tab.</span></div>
+        <div class="table-wrap" style="border:0;border-radius:0">
+          <table>
+            <thead><tr><th>Status</th><th>Message</th><th>data</th></tr></thead>
+            <tbody>
+              <tr><td><span class="status s2">200</span></td><td>"Bookmarks fetched successfully"</td><td>An array of saved thread objects (below), newest <code>savedAt</code> first. <code>[]</code> if there are none.</td></tr>
+              <tr><td><span class="status s4">401</span></td><td colspan="2">Missing or invalid token</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="ep-note">Bookmarks whose thread has been deleted are left out of the response and deleted in the same request.</div>
+      </article>
+
+      <article class="endpoint">
+        <div class="ep-head"><span class="method get">GET</span><span class="ep-path">/api/bookmarks/ids</span><span class="ep-purpose">Ids of every thread the caller has saved. Loaded once per session so cards can show their saved state.</span></div>
+        <div class="table-wrap" style="border:0;border-radius:0">
+          <table>
+            <thead><tr><th>Status</th><th>Message</th><th>data</th></tr></thead>
+            <tbody>
+              <tr><td><span class="status s2">200</span></td><td>"Bookmark ids fetched successfully"</td><td><code>string[]</code> of thread ids, unordered. Excludes threads that no longer exist.</td></tr>
+              <tr><td><span class="status s4">401</span></td><td colspan="2">Missing or invalid token</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="ep-note">Having a separate ids endpoint means thread payloads elsewhere in the app don't need an <code>isSaved</code> field, which keeps this feature out of <code>threadService.js</code>.</div>
+      </article>
+
+      <article class="endpoint">
+        <div class="ep-head"><span class="method put">PUT</span><span class="ep-path">/api/bookmarks/:threadId</span><span class="ep-purpose">Saves a thread. Safe to repeat. No request body.</span></div>
+        <div class="table-wrap" style="border:0;border-radius:0">
+          <table>
+            <thead><tr><th>Status</th><th>Message</th><th>data</th></tr></thead>
+            <tbody>
+              <tr><td><span class="status s2">200</span></td><td>"Thread saved"</td><td><code>{ threadId, saved: true, savedAt }</code>. Repeat calls return the <b>original</b> <code>savedAt</code>.</td></tr>
+              <tr><td><span class="status s4">400</span></td><td>"Invalid thread id"</td><td><code>threadId</code> is not a valid ObjectId</td></tr>
+              <tr><td><span class="status s4">404</span></td><td>"Thread not found"</td><td>No thread with that id</td></tr>
+              <tr><td><span class="status s4">401</span></td><td colspan="2">Missing or invalid token</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="ep-note">If two saves arrive at once and one hits the unique index (MongoDB duplicate-key error 11000), that save is treated as successful and returns the existing bookmark.</div>
+      </article>
+
+      <article class="endpoint">
+        <div class="ep-head"><span class="method del">DELETE</span><span class="ep-path">/api/bookmarks/:threadId</span><span class="ep-purpose">Unsaves a thread. Safe to repeat.</span></div>
+        <div class="table-wrap" style="border:0;border-radius:0">
+          <table>
+            <thead><tr><th>Status</th><th>Message</th><th>data</th></tr></thead>
+            <tbody>
+              <tr><td><span class="status s2">200</span></td><td>"Thread unsaved"</td><td><code>{ threadId, saved: false }</code>. Also returned when nothing was saved.</td></tr>
+              <tr><td><span class="status s4">400</span></td><td>"Invalid thread id"</td><td><code>threadId</code> is not a valid ObjectId</td></tr>
+              <tr><td><span class="status s4">401</span></td><td colspan="2">Missing or invalid token</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="ep-note">The thread doesn't have to exist, so a user can remove a bookmark whose thread was deleted.</div>
+      </article>
+    </div>
+
+    <h3>Saved thread object (returned by <code>GET /api/bookmarks</code>)</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><code>_id</code></td><td>string</td><td>Thread id</td></tr>
+          <tr><td><code>title</code>, <code>content</code></td><td>string</td><td></td></tr>
+          <tr><td><code>voteCount</code>, <code>upvotes</code>, <code>downvotes</code></td><td>number</td><td></td></tr>
+          <tr><td><code>createdAt</code></td><td>ISO string</td><td>When the thread was created</td></tr>
+          <tr><td><code>author</code></td><td><code>{ _id, name }</code></td><td><b>Never</b> includes <code>email</code> or <code>password</code></td></tr>
+          <tr><td><code>subreddit</code></td><td><code>{ _id, name }</code></td><td></td></tr>
+          <tr><td><code>savedAt</code></td><td>ISO string</td><td>When the bookmark was created</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small muted"><code>upvotedBy</code> and <code>downvotedBy</code> are deliberately left out.</p>
+
+    <h3>Backend layering</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Layer</th><th>File</th><th>Responsibilities</th></tr></thead>
+        <tbody>
+          <tr><td>Model</td><td><code>src/models/Bookmark.js</code> <span class="chip new">new</span></td><td>Schema and indexes (§5)</td></tr>
+          <tr><td>Service</td><td><code>src/services/bookmarkService.js</code> <span class="chip new">new</span></td><td><code>listBookmarks</code>, <code>listBookmarkedThreadIds</code>, <code>saveBookmark</code>, <code>removeBookmark</code>. Owns id validation (400), the thread-exists check (404), duplicate-key handling, orphan filtering and cleanup, and the <code>{ _id, name }</code> projection.</td></tr>
+          <tr><td>Controller</td><td><code>src/controllers/bookmarkController.js</code> <span class="chip new">new</span></td><td>Reads <code>req.user.userId</code> and <code>req.params.threadId</code>, calls the service, sends the envelope. No business logic.</td></tr>
+          <tr><td>Route</td><td><code>src/routes/bookmarks.js</code> <span class="chip new">new</span></td><td>Four routes, each behind <code>authHandler</code></td></tr>
+          <tr><td>App</td><td><code>src/app.js</code> <span class="chip edit">edited</span></td><td><code>app.use("/api/bookmarks", bookmarkRoutes)</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- §6 -->
+  <section id="ui">
+    <div class="sec-head"><span class="sec-ref">Spec §6</span><h2>UI changes</h2></div>
+
+    <div class="mock-wrap">
+      <figure>
+        <div class="mock" role="img" aria-label="Illustrative mock of the Profile page with the Saved tab selected, listing three saved threads with vote counts, subreddit, saved time and a filled bookmark icon, followed by pagination.">
+          <div class="mock-bar"><span>/profile?tab=saved</span><span>illustrative mock</span></div>
+          <div class="mock-profile">
+            <div class="avatar">A</div>
+            <div><div class="mock-title">Alice</div><div class="mock-meta">Edit Profile appears on the Details tab only</div></div>
+          </div>
+          <div class="mock-tabs"><span>Details</span><span class="on">Saved (12)</span></div>
+          <ul class="mock-list">
+            <li>
+              <div class="votes"><span>▲</span><b>14</b><span>▼</span></div>
+              <div><div class="mock-title">How do I learn Rust coming from JavaScript?</div><div class="mock-meta"><span class="badge-sub">r/programming</span><span>saved 2h ago</span></div></div>
+              <svg class="bm" viewBox="0 0 16 16" aria-label="Unsave thread"><path d="M3.5 1.5h9v13L8 11.2 3.5 14.5z" fill="currentColor"/></svg>
+            </li>
+            <li>
+              <div class="votes"><span>▲</span><b>3</b><span>▼</span></div>
+              <div><div class="mock-title">Best day hikes within two hours of the city?</div><div class="mock-meta"><span class="badge-sub">r/outdoors</span><span>saved 1d ago</span></div></div>
+              <svg class="bm" viewBox="0 0 16 16" aria-label="Unsave thread"><path d="M3.5 1.5h9v13L8 11.2 3.5 14.5z" fill="currentColor"/></svg>
+            </li>
+            <li>
+              <div class="votes"><span>▲</span><b>27</b><span>▼</span></div>
+              <div><div class="mock-title">Share your favourite sourdough starter tips</div><div class="mock-meta"><span class="badge-sub">r/baking</span><span>saved 4d ago</span></div></div>
+              <svg class="bm" viewBox="0 0 16 16" aria-label="Unsave thread"><path d="M3.5 1.5h9v13L8 11.2 3.5 14.5z" fill="currentColor"/></svg>
+            </li>
+          </ul>
+          <div class="mock-pager"><span>‹</span><span class="on">1</span><span>2</span><span>3</span><span>›</span></div>
+          <p class="mock-note">Example content. Five threads per page in the real list (AC-15).</p>
+        </div>
+        <figcaption><b>Profile, Saved tab.</b> The Saved list reuses <code>ThreadList</code> and <code>PaginationComponent</code>. "saved 2h ago" appears only when a thread has a <code>savedAt</code> field, which only this list's data has.</figcaption>
+      </figure>
+
+      <div class="states" aria-label="BookmarkButton states">
+        <h3>BookmarkButton states</h3>
+        <div class="state">
+          <div class="ico"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 1.5h9v13L8 11.2 3.5 14.5z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+          <div><b>Not saved</b><span>Outline icon <code>bi-bookmark</code> · <code>aria-pressed="false"</code> · label "Save thread"</span></div>
+        </div>
+        <div class="state">
+          <div class="ico"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 1.5h9v13L8 11.2 3.5 14.5z" fill="currentColor"/></svg></div>
+          <div><b>Saved</b><span>Filled icon <code>bi-bookmark-fill</code> · <code>aria-pressed="true"</code> · label "Unsave thread"</span></div>
+        </div>
+        <div class="state pending">
+          <div class="ico"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 1.5h9v13L8 11.2 3.5 14.5z" fill="currentColor"/></svg></div>
+          <div><b>Request in flight</b><span>Disabled wherever this thread appears until the server answers</span></div>
+        </div>
+        <p class="small muted">A small link-style button using the app's existing color variables, so it works in light and dark themes. It takes one prop, <code>threadId</code>.</p>
+      </div>
+    </div>
+
+    <h3>Redux: <code>bookmarkSlice</code> (registered as <code>bookmarks</code>)</h3>
+    <div class="two-col">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>State key</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><code>savedIds</code></td><td>Ids of saved threads. Drives every toggle and the tab count.</td></tr>
+            <tr><td><code>idsStatus</code></td><td><code>idle</code> · <code>loading</code> · <code>succeeded</code> · <code>failed</code></td></tr>
+            <tr><td><code>savedThreads</code></td><td>Saved thread objects for the Saved tab</td></tr>
+            <tr><td><code>threadsStatus</code></td><td><code>idle</code> · <code>loading</code> · <code>succeeded</code> · <code>failed</code></td></tr>
+            <tr><td><code>threadsError</code></td><td>Error message, or <code>null</code></td></tr>
+            <tr><td><code>pendingIds</code></td><td>Threads with a save or unsave in flight</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout">
+        <h3>How the state changes</h3>
+        <ul>
+          <li><b>Thunks:</b> <code>fetchBookmarkIds</code>, <code>fetchSavedThreads</code>, <code>toggleBookmark({ threadId, save })</code>. Failures go through <code>handleApiError</code>.</li>
+          <li><b>Toggle pending:</b> add to <code>pendingIds</code>, then add to or remove from <code>savedIds</code> straight away. On unsave, also drop the thread from <code>savedThreads</code>.</li>
+          <li><b>Toggle succeeded:</b> remove from <code>pendingIds</code>.</li>
+          <li><b>Toggle failed:</b> remove from <code>pendingIds</code> and restore <code>savedIds</code>. The list refetches the next time the tab opens.</li>
+          <li><b>Vote sync:</b> when <code>threadSlice</code>'s upvote or downvote succeeds, update that thread's counts in <code>savedThreads</code> (same pattern as <code>selectedThreadSlice</code>).</li>
+          <li><b>Logout:</b> reset everything on the <code>"auth/logout"</code> action type.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>File-by-file</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>File</th><th></th><th>Change</th></tr></thead>
+        <tbody>
+          <tr><td><code>src/services/bookmarkService.js</code></td><td><span class="chip new">new</span></td><td><code>fetchBookmarks</code>, <code>fetchBookmarkIds</code>, <code>saveBookmark</code>, <code>unsaveBookmark</code>. Same <code>axiosInstance</code> and auth-header pattern as the existing services.</td></tr>
+          <tr><td><code>src/reducers/bookmarkSlice.js</code></td><td><span class="chip new">new</span></td><td>The state above</td></tr>
+          <tr><td><code>src/components/Shared/BookmarkButton.jsx</code></td><td><span class="chip new">new</span></td><td>The toggle</td></tr>
+          <tr><td><code>src/utils/formatRelativeTime.js</code></td><td><span class="chip new">new</span></td><td>"just now", "5m ago", "2h ago", "3d ago", or a short date after 30 days. Uses the browser's built-in <code>Intl.RelativeTimeFormat</code>; no new dependency.</td></tr>
+          <tr><td><code>ThreadList.jsx</code></td><td><span class="chip edit">edited</span></td><td>Bookmark toggle after the subreddit badge on each card. Shows "saved …" when <code>savedAt</code> is present.</td></tr>
+          <tr><td><code>ThreadCard.jsx</code></td><td><span class="chip edit">edited</span></td><td>Bookmark toggle beside "Generate Summary". The decorative <code>bi-bookmark</code> icon before the subreddit badge changes to <code>bi-people</code> so it isn't mistaken for the new button.</td></tr>
+          <tr><td><code>Profile.jsx</code></td><td><span class="chip edit">edited</span></td><td>Restructured into tabs (below)</td></tr>
+          <tr><td><code>App.jsx</code></td><td><span class="chip edit">edited</span></td><td>When a login token appears (at login, or on app load with a stored token), load the saved ids. No new routes.</td></tr>
+          <tr><td><code>store/store.js</code></td><td><span class="chip edit">edited</span></td><td>Register <code>bookmarks</code></td></tr>
+          <tr><td><code>config/apiConfig.js</code></td><td><span class="chip edit">edited</span></td><td><code>BOOKMARK_API</code>: <code>/bookmarks</code>, <code>/bookmarks/ids</code>, <code>/bookmarks/:id</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Profile page structure</h3>
+    <ol class="steps">
+      <li><b>Header card</b> looks the same: avatar, name, and the Edit / Save / Cancel buttons. The buttons show only while the Details tab is active.</li>
+      <li><b>Tabs</b> (<code>details</code> and <code>saved</code>), driven by the <code>?tab=</code> query parameter. A missing or unknown value opens Details. The Saved tab is titled "Saved (N)", where N is the number of saved threads.</li>
+      <li><b>Details tab</b> holds the existing field grid and edit form, unchanged.</li>
+      <li><b>Saved tab</b> reloads the list and resets to page 1 every time it's opened. It shows a loading, error-with-Retry, empty, or list state; the list is 5 per page.</li>
+    </ol>
+  </section>
+
+  <!-- §3 -->
+  <section id="criteria">
+    <div class="sec-head"><span class="sec-ref">Spec §3</span><h2>Acceptance criteria</h2></div>
+    <p class="prose">Each criterion maps to automated tests. The tags show which suites cover it: <span class="chip be">BE unit</span> <span class="chip be">BE int</span> backend unit and integration, <span class="chip fe">FE unit</span> <span class="chip fe">FE int</span> frontend unit and integration.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Criterion</th><th>Tested by</th></tr></thead>
+        <tbody>
+          <tr class="group-row"><td colspan="3">Saving and unsaving</td></tr>
+          <tr><td class="id">AC-1</td><td>Every thread card in the Home and subreddit feed (<code>ThreadList</code>) and the thread page (<code>ThreadCard</code>) shows a bookmark toggle.</td><td><span class="chip fe">FE unit</span></td></tr>
+          <tr><td class="id">AC-2</td><td>For a thread the user hasn't saved, the toggle shows the outline icon, has <code>aria-pressed="false"</code> and the name "Save thread".</td><td><span class="chip fe">FE unit</span></td></tr>
+          <tr><td class="id">AC-3</td><td>Clicking it switches it <b>immediately</b>, before the server responds, to the filled icon, <code>aria-pressed="true"</code> and "Unsave thread". It also sends <code>PUT /api/bookmarks/:threadId</code>.</td><td><span class="chip be">BE unit</span><span class="chip be">BE int</span><span class="chip fe">FE unit</span><span class="chip fe">FE int</span></td></tr>
+          <tr><td class="id">AC-4</td><td>Clicking a saved thread's toggle switches it back immediately and sends <code>DELETE /api/bookmarks/:threadId</code>.</td><td><span class="chip be">BE unit</span><span class="chip be">BE int</span><span class="chip fe">FE unit</span><span class="chip fe">FE int</span></td></tr>
+          <tr><td class="id">AC-5</td><td>While a request for a thread is in flight, that thread's toggle is disabled everywhere it appears.</td><td><span class="chip fe">FE unit</span></td></tr>
+          <tr><td class="id">AC-6</td><td>If the request fails, the toggle reverts and the error goes through <code>handleApiError</code>. A 401 triggers the existing redirect to <code>/login</code>.</td><td><span class="chip fe">FE unit</span><span class="chip fe">FE int</span></td></tr>
+          <tr><td class="id">AC-7</td><td>Saving on the thread page and going back to the feed shows the toggle filled, without a reload.</td><td><span class="chip fe">FE unit</span></td></tr>
+          <tr><td class="id">AC-8</td><td>After a full page reload, previously saved threads still show the filled icon.</td><td><span class="chip be">BE int</span><span class="chip fe">FE int</span></td></tr>
+
+          <tr class="group-row"><td colspan="3">Profile → Saved tab</td></tr>
+          <tr><td class="id">AC-9</td><td><code>/profile</code> shows two tabs, Details and Saved. Details is selected by default.</td><td><span class="chip fe">FE unit</span></td></tr>
+          <tr><td class="id">AC-10</td><td><code>/profile?tab=saved</code> opens Saved directly. Switching tabs updates <code>tab</code> in the URL without a full navigation.</td><td><span class="chip fe">FE unit</span></td></tr>
+          <tr><td class="id">AC-11</td><td>The Saved tab label shows the count, for example "Saved (12)", and it updates when the user saves or unsaves anywhere.</td><td><span class="chip fe">FE unit</span></td></tr>
+          <tr><td class="id">AC-12</td><td>The Edit Profile button shows only on Details. All existing Details behaviour (view, edit, Save, Cancel) is unchanged.</td><td><span class="chip fe">FE unit</span></td></tr>
+          <tr><td class="id">AC-13</td><td>Each time the Saved tab is opened, it fetches <code>GET /api/bookmarks</code> and shows a spinner while loading.</td><td><span class="chip fe">FE unit</span></td></tr>
+          <tr><td class="id">AC-14</td><td>Saved threads are listed newest-saved first. Each shows the title, <code>r/&lt;subreddit&gt;</code>, vote count, "saved &lt;relative time&gt;", a filled toggle, and a link to <code>/thread/:id</code>.</td><td><span class="chip be">BE unit</span><span class="chip be">BE int</span><span class="chip fe">FE unit</span><span class="chip fe">FE int</span></td></tr>
+          <tr><td class="id">AC-15</td><td>With more than 5 saved threads, the list is paginated at 5 per page with the existing <code>PaginationComponent</code>.</td><td><span class="chip fe">FE unit</span></td></tr>
+          <tr><td class="id">AC-16</td><td>Unsaving from the Saved tab removes the item immediately and lowers the count. If that empties the current page, the view moves to the previous page.</td><td><span class="chip fe">FE unit</span><span class="chip fe">FE int</span></td></tr>
+          <tr><td class="id">AC-17</td><td>With no saved threads: "You haven't saved any threads yet." and a link to <code>/home</code>.</td><td><span class="chip fe">FE unit</span></td></tr>
+          <tr><td class="id">AC-18</td><td>If loading fails, an error alert with a Retry button that fetches again.</td><td><span class="chip fe">FE unit</span></td></tr>
+          <tr><td class="id">AC-19</td><td>Voting on a thread in the Saved tab updates its displayed count.</td><td><span class="chip fe">FE unit</span></td></tr>
+
+          <tr class="group-row"><td colspan="3">Data integrity and privacy</td></tr>
+          <tr><td class="id">AC-20</td><td>A saved thread that is later deleted appears in neither GET endpoint and isn't counted in the tab label.</td><td><span class="chip be">BE unit</span><span class="chip be">BE int</span></td></tr>
+          <tr><td class="id">AC-21</td><td>Both GET endpoints return only the requesting user's bookmarks.</td><td><span class="chip be">BE int</span></td></tr>
+          <tr><td class="id">AC-22</td><td>Saving the same thread twice, one after the other or at the same time, leaves exactly <b>one</b> bookmark, and both requests return 200.</td><td><span class="chip be">BE unit</span><span class="chip be">BE int</span></td></tr>
+          <tr><td class="id">AC-23</td><td>No bookmark response contains any user's <code>password</code> or <code>email</code>.</td><td><span class="chip be">BE unit</span><span class="chip be">BE int</span></td></tr>
+          <tr><td class="id">AC-24</td><td>All four endpoints return 401 without a valid token.</td><td><span class="chip be">BE int</span></td></tr>
+          <tr><td class="id">AC-25</td><td>After logout all bookmark state is cleared. Logging in as someone else shows only that user's saved state.</td><td><span class="chip fe">FE unit</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- §7 -->
+  <section id="edge-cases">
+    <div class="sec-head"><span class="sec-ref">Spec §7</span><h2>Edge cases &amp; error handling</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Case</th><th>Expected behaviour</th></tr></thead>
+        <tbody>
+          <tr><td>Thread id isn't a valid ObjectId (e.g. <code>abc</code>)</td><td><span class="status s4">400</span> "Invalid thread id". Without this check, Mongoose would throw an error the app turns into a 500.</td></tr>
+          <tr><td>Saving a thread that doesn't exist or was just deleted</td><td><span class="status s4">404</span> "Thread not found". The toggle reverts.</td></tr>
+          <tr><td>Thread deleted after it was saved</td><td>Left out of both GET endpoints; the orphaned bookmark is deleted on the next <code>GET /api/bookmarks</code>. No toggle can appear for it, because the thread no longer renders anywhere.</td></tr>
+          <tr><td>Double-click or rapid toggling</td><td>The toggle is disabled while a request is pending (AC-5), and the server is repeat-safe either way.</td></tr>
+          <tr><td>Two saves at once, e.g. from two browser tabs</td><td>The unique index plus duplicate-key handling leave one document, and both requests return 200 (AC-22).</td></tr>
+          <tr><td>Unsaving something that isn't saved</td><td><span class="status s2">200</span>; nothing changes.</td></tr>
+          <tr><td>Login expires mid-session</td><td><span class="status s4">401</span>; the existing <code>handleApiError</code> clears the stored session and redirects to <code>/login</code>.</td></tr>
+          <tr><td>Loading saved ids fails at startup</td><td><code>idsStatus: 'failed'</code>; toggles show as not saved. Saving still works because <code>PUT</code> is repeat-safe. The ids load again when the Saved tab opens.</td></tr>
+          <tr><td>User saves from the feed while the Saved list is out of date</td><td>The Saved tab reloads every time it's opened (AC-13).</td></tr>
+          <tr><td>Unsaving the only item on the last page</td><td>The view moves back to the new last page (AC-16).</td></tr>
+          <tr><td>Unknown <code>?tab=</code> value</td><td>Opens Details.</td></tr>
+          <tr><td>Logout, then login as another user</td><td>Bookmark state resets on <code>auth/logout</code>, and the ids load again for the new user (AC-25).</td></tr>
+          <tr><td>Bookmarks changed on another device or tab</td><td>This tab may be out of date until a reload or until the Saved tab is reopened. Accepted for v1.</td></tr>
+          <tr><td>A user with a very large number of bookmarks</td><td>No limit in v1. The server returns the whole list and the browser paginates it. See Out of scope.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- §8 -->
+  <section id="out-of-scope">
+    <div class="sec-head"><span class="sec-ref">Spec §8</span><h2>Out of scope</h2></div>
+    <ul class="plain">
+      <li>A dedicated <code>/saved</code> page or a Sidebar "Saved" link. The epic draft proposed both; this spec puts the list on Profile only, as requested.</li>
+      <li>Bookmarking comments or subreddits.</li>
+      <li>Folders or collections, notes on bookmarks, and reordering, sorting or filtering the saved list.</li>
+      <li>Public or shared saved lists, and save counts shown on threads.</li>
+      <li>Server-side pagination of <code>GET /api/bookmarks</code>. Revisit if users routinely pass about 200 bookmarks.</li>
+      <li>Deleting bookmarks at the moment a thread is deleted. Cleanup on read covers it, and the alternative would mean editing <code>threadService.js</code>, which another epic feature also changes.</li>
+      <li><b>Pre-existing issues, tracked separately:</b> <code>GET /api/threads</code> and <code>GET /api/subreddits/:id</code> send author password hashes to the browser, and anyone logged in can edit or delete any thread. This feature's endpoints must not leak (AC-23), but fixing the existing endpoints is a separate change.</li>
+      <li>Saving profile Details fields (bio, location, website) to the server.</li>
+    </ul>
+  </section>
+
+  <!-- §9 -->
+  <section id="tests">
+    <div class="sec-head"><span class="sec-ref">Spec §9</span><h2>Test plan</h2></div>
+
+    <div class="two-col">
+      <div class="callout">
+        <h3>Backend unit <span class="chip be">BE unit</span></h3>
+        <p class="small muted">Vitest with mocked models, following the existing <code>voteService.test.js</code>.</p>
+        <ul class="small">
+          <li><code>bookmarkService.test.js</code>:
+            <ul>
+              <li>Save creates a bookmark. A repeat save returns the original <code>savedAt</code>. Error 11000 counts as success. Invalid id gives 400 without a query; a missing thread gives 404.</li>
+              <li>Remove deletes the bookmark, does nothing when there is none, and gives 400 for an invalid id.</li>
+              <li>The list is newest-first, maps <code>savedAt</code>, drops and deletes orphans, and returns author and subreddit as <code>{ _id, name }</code> only.</li>
+              <li>The ids list contains only threads that still exist.</li>
+            </ul>
+          </li>
+          <li><code>bookmarkController.test.js</code>: passes <code>req.user.userId</code> and <code>threadId</code> through, checks status, message and envelope, and lets service errors propagate.</li>
+        </ul>
+      </div>
+      <div class="callout">
+        <h3>Backend integration <span class="chip be">BE int</span></h3>
+        <p class="small muted">Supertest against an in-memory MongoDB, in <code>tests/integration/bookmark.test.js</code>. Two users register and log in. <code>await Bookmark.init()</code> runs first so the unique index exists, and <code>Bookmark</code>, <code>Thread</code> and <code>Subreddit</code> are cleared before each test without touching <code>tests/setup.js</code>.</p>
+        <ul class="small">
+          <li>All four endpoints return 401 without a token.</li>
+          <li>A save shows up in both GET endpoints, with the right <code>savedAt</code> and author/subreddit shapes.</li>
+          <li>Two sequential saves and two concurrent saves (<code>Promise.all</code>) each leave one document, return 200 and keep the same <code>savedAt</code>.</li>
+          <li>Unsave removes the thread. Unsaving something not saved returns 200.</li>
+          <li>A missing thread gives 404 and <code>abc</code> gives 400.</li>
+          <li>A deleted thread disappears from both GETs and its bookmark document is removed.</li>
+          <li>User B never sees user A's bookmarks.</li>
+          <li>Three saves come back newest-first.</li>
+          <li>No <code>password</code> or <code>email</code> key appears anywhere in a response.</li>
+        </ul>
+      </div>
+      <div class="callout">
+        <h3>Frontend unit <span class="chip fe">FE unit</span></h3>
+        <p class="small muted">Vitest, jsdom, React Testing Library and MSW.</p>
+        <ul class="small">
+          <li><code>bookmarkSlice.test.js</code>: immediate add and remove, revert on failure, the pending lifecycle, unsave dropping the thread from the list, vote sync, reset on <code>auth/logout</code>, and the fetch thunks.</li>
+          <li><code>BookmarkButton.test.jsx</code>: icon, <code>aria-pressed</code> and label in both states; a click dispatches with the right <code>save</code> flag; disabled while pending.</li>
+          <li><code>formatRelativeTime.test.js</code>: just now, minutes, hours, days, and more than 30 days.</li>
+        </ul>
+      </div>
+      <div class="callout">
+        <h3>Frontend integration <span class="chip fe">FE int</span></h3>
+        <p class="small muted">Redux with MSW, following <code>threadFlow.test.jsx</code>, in <code>tests/integration/bookmarkFlow.test.jsx</code>.</p>
+        <ul class="small">
+          <li>Loading ids fills <code>savedIds</code>.</li>
+          <li>A save ends with the id saved and nothing pending; an unsave removes it from both <code>savedIds</code> and <code>savedThreads</code>.</li>
+          <li>When <code>PUT</code> returns 500 (via <code>server.use</code>), <code>savedIds</code> reverts.</li>
+          <li>The saved list arrives in the server's order.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>Existing tests that must be updated</h3>
+    <p class="prose small muted">Each of these files builds its own Redux store. Once the new button and the Profile page read bookmark state, they will crash unless the <code>bookmarks</code> reducer is added.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>File</th><th>Change</th></tr></thead>
+        <tbody>
+          <tr><td><code>tests/unit/pages/Profile.test.jsx</code></td><td>Add the <code>bookmarks</code> reducer; all existing tests must still pass. New tests: Details opens by default; <code>?tab=saved</code> (via <code>MemoryRouter</code>) opens Saved; tab count; empty state; list items with "saved … ago"; unsave removes a row and lowers the count; pagination past 5 items; Retry after an error; Edit Profile hidden on Saved.</td></tr>
+          <tr><td><code>tests/unit/components/ThreadList.test.jsx</code></td><td>Add the reducer. Every card has a toggle; a thread whose id is preloaded in <code>savedIds</code> renders as saved; "saved … ago" appears only when <code>savedAt</code> is set.</td></tr>
+          <tr><td><code>tests/unit/components/ThreadCard.test.jsx</code></td><td>Add the reducer. The toggle renders; the subreddit icon is no longer <code>bi-bookmark</code>.</td></tr>
+          <tr><td><code>tests/unit/store/store.test.js</code></td><td>Assert that the store has <code>bookmarks</code> with <code>savedIds</code>, <code>savedThreads</code> and <code>pendingIds</code>.</td></tr>
+          <tr><td><code>tests/mocks/handlers.js</code>, <code>mockData.js</code></td><td>Handlers for all four endpoints, backed by an in-memory set so saves and unsaves round-trip within a test; <code>mockBookmarks</code> fixtures with <code>savedAt</code>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Manual check before merge</h3>
+    <ol class="steps">
+      <li>Run both apps (<code>npm run dev</code> in each).</li>
+      <li>Save a thread from the feed, then open it: the toggle is filled.</li>
+      <li>Reload the page: the thread is still saved.</li>
+      <li>Open <code>/profile?tab=saved</code>: the thread is listed with "saved just now".</li>
+      <li>Unsave it there: the row disappears and the count drops.</li>
+      <li>Delete a saved thread through the API: it is gone from the Saved tab.</li>
+      <li>Repeat in dark mode.</li>
+    </ol>
+  </section>
+
+  </main>
+</div>
+
+<footer>
+  <span>Source: <code>specs/001-bookmarks.md</code> · drafted 21 Nov 2026</span>
+  <span>Next step: implementation plan via <code>/plan-feature specs/001-bookmarks.md</code></span>
+</footer>
+
+</div>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var btn = document.getElementById('theme-toggle');
+  var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  function isDark() {
+    var t = root.getAttribute('data-theme');
+    if (t) return t === 'dark';
+    return !!(mq && mq.matches);
+  }
+  function label() { btn.textContent = isDark() ? 'Light theme' : 'Dark theme'; }
+  btn.addEventListener('click', function () {
+    root.setAttribute('data-theme', isDark() ? 'light' : 'dark');
+    label();
+  });
+  if (mq && mq.addEventListener) mq.addEventListener('change', label);
+  label();
+
+  // Highlight the current section in the contents rail.
+  var links = Array.prototype.slice.call(document.querySelectorAll('#toc a'));
+  if (!('IntersectionObserver' in window) || !links.length) return;
+  var byId = {};
+  links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) {
+        links.forEach(function (a) { a.classList.remove('active'); });
+        var a = byId[e.target.id];
+        if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  Object.keys(byId).forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) io.observe(el);
+  });
+})();
+</script>
+</body>
+</html>
